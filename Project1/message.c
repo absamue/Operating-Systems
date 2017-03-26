@@ -208,10 +208,22 @@ void append_event_queue( int thread_id, struct buffer_element *element ){
 //
 // ASSIGNMENT PART 1 - add necessary code here
 //
-
-  event_queue[thread_id]->back->next = element; //set element at end
-  event_queue[thread_id]->back = element;			//set element as back
-  event_queue[thread_id]->back->next = event_queue[thread_id]; //set back to loop to front
+	
+	//get head
+	struct buffer_element *temp = event_queue[thread_id];
+	
+	//empty list, insert
+	if(temp == NULL){
+		temp = element;
+		temp->next = temp->back = element;
+	}
+	//not empty, add at end
+	else{
+		temp->back->next = element;
+		element->back = temp->back;
+		temp->back = element;
+		element->next = temp;
+	}
 }
 
 
@@ -339,7 +351,10 @@ void wait_message( int thread_id, int *sender, int *message,
 //
 // ASSIGNMENT PART 2 - add the necessary code here
 //
-  while(event_queue[thread_id]->next == event_queue[thread_id])	//wait while queue is empty
+	//wait while queue is empty
+  while(event_queue[thread_id] == event_queue[thread_id]->next){	
+    pthread_cond_wait( &waiting[thread_id], &big_lock );
+  }
 
   element = remove_first_event_queue( thread_id );
 
@@ -371,7 +386,7 @@ void wait_message( int thread_id, int *sender, int *message,
  */
 
 void send_answer( int answer, struct buffer_element *element ){
-  int sender;
+  //int sender;
 
   if( element == NULL ){
     printf( "--send answer error - NULL pointer\n" );
@@ -388,11 +403,14 @@ void send_answer( int answer, struct buffer_element *element ){
 //
 // ASSIGNMENT PART 3 - add the necessary code here
 //
+	//set element state to sent, and set value
 	element->state = 3;
 	element->value = answer;
 
+	//append element to the message queue of receiver
 	append_event_queue(element->receiver_address, element);
 
+	//signal to the sender that we have answer
 	pthread_cond_signal(&waiting[element->sender_address]);
 
   pthread_mutex_unlock( &big_lock );
