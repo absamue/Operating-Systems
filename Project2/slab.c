@@ -1,4 +1,5 @@
 #include "slab.h"
+#include "stdlib.h"
 
 unsigned char *slab_allocate(){
 	int i;
@@ -70,12 +71,50 @@ unsigned char *slab_allocate(){
 		s[pos].free_space[63-i] = (s[pos].free_mask >> i) & 1;
 	}
 
-	//return the slab at correct position
-	return s[pos].free_space + ((15 - s[pos].free_count) * 256);
+	//return the slab at start + slab # + object #
+	return start + (pos * 4096) + ((15 - s[pos].free_count) * 256);
 }
 
 int slab_release(unsigned char *addr){
+
+	//check for slab outside of range
+	if(addr < start || addr > (start + 61440))
+		return 1;
+
+	//get slab position from s[]
+	int pos = addr - start;
+	pos /= 4096;
+
+	//check signature
 	
+	//check free mask
+	int object = addr - start;
+	object /= 256;
+	if(((s[pos].free_mask >> 15-object) & 1) == 1){
+		return 2;
+	}
+	
+	//update count
+	s[pos].free_count++;
+
+	//if slab is empty mark it in masks
+	if(s[pos].free_count == 15){
+		full_mask &= ~(1 << (15 - pos));
+		partial_mask &= ~(1 << (15 - pos));
+		empty_mask |= (1 << (15 - pos));
+	}
+	//otherwise update partial mask
+	else{
+		//set partial mask
+		partial_mask |= (1 << (15 - pos));
+		//clear empty and full mask
+		empty_mask &= ~(1 << (15 - pos));
+		full_mask &= ~(1 << (15 - pos));
+	}
+
+	//update free mask
+	s[pos].free_mask |= (1 << (15 - object));
+
 	
 	return 0;
 
