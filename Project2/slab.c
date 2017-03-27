@@ -3,21 +3,20 @@
 
 unsigned char *slab_allocate(){
 	int i;
-	int pos = 0;
-	int partial;
-	int empty;
+	int pos;
+	int object;
 
 	if(full_mask == 0xffff)
 		return NULL;
 
 
+	//choose first available slab
 	pos = -1;
 	if(partial_mask != 0x0000){
 		//check partial 
 		for(i = 0; i<16; i++){
-			if((partial_mask >> 15-i) & 1 == 1){
+			if(((partial_mask >> (15-i)) & 1) == 1){
 				pos = i;
-				partial = 1;
 				break;
 			}
 		}
@@ -25,14 +24,20 @@ unsigned char *slab_allocate(){
 	//no partial, find first empty
 	else{
 		for(i = 0; i<16; i++){
-			if((empty_mask >> 15-i) & 1 == 1){
+			if(((empty_mask >> (15-i)) & 1) == 1){
 				pos = i;
-				empty = 1;
 				break;
 			}
 		}			
 	}
 
+	//find first free object
+	for(i=1; i<16; i++){
+		if(((s[pos].free_mask >> (15-i)) & 1) == 1){
+			object = i;
+			break;
+		}
+	}
 
 	//reduce count
 	s[pos].free_count--;
@@ -54,7 +59,7 @@ unsigned char *slab_allocate(){
 
 	//set slab info
 	//set free mask to 0 at current position
-	s[pos].free_mask &= ~(1 << (s[pos].free_count));
+	s[pos].free_mask &= ~(1 << (15 - object));
 
 	//set free count bits
 	for(i=0; i < 16; i++){
@@ -68,7 +73,7 @@ unsigned char *slab_allocate(){
 
 	//set signature
 	for(i=32; i<64; i++){
-		s[pos].free_space[63-i] = (s[pos].free_mask >> i) & 1;
+		s[pos].free_space[63-i] = (s[pos].signature >> i) & 1;
 	}
 
 	//return the slab at start + slab # + object #
@@ -86,11 +91,14 @@ int slab_release(unsigned char *addr){
 	pos /= 4096;
 
 	//check signature
-	
+	if(s[pos].signature != 0x51ab51ab)
+		return 1;
+
 	//check free mask
 	int object = addr - start;
+	object %= 4096;
 	object /= 256;
-	if(((s[pos].free_mask >> 15-object) & 1) == 1){
+	if(((s[pos].free_mask >> (15-object)) & 1) == 1){
 		return 2;
 	}
 	
@@ -115,7 +123,6 @@ int slab_release(unsigned char *addr){
 	//update free mask
 	s[pos].free_mask |= (1 << (15 - object));
 
-	
 	return 0;
 
 }
