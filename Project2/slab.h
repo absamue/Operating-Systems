@@ -4,7 +4,7 @@ typedef struct{
   short unsigned int free_count;
   short unsigned int free_mask;
   unsigned int signature;
-  unsigned char free_space[4096];
+  unsigned char free_space[4088];
 } slab_t; 
 
 extern slab_t __attribute__ ((aligned (65536))) s[16];
